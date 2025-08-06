@@ -1,0 +1,7 @@
+dotenv
+os
+csv
+requests
+rich
+tkinter
+pytest
