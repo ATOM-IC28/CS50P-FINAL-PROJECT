@@ -1,0 +1,3 @@
+#files for github not to show to other people
+#the .env file which contains my secret api_keys
+
