@@ -9,6 +9,11 @@ from tkinter import TclError
 from rich.console import Console
 from rich.table import Table
 from rich import box
+import matplotlib.pyplot as plt
+import numpy as np
+import time
+import ast
+
 
 
 class Portfolio:
@@ -39,8 +44,8 @@ class Portfolio:
             file_name = fd.askopenfilename(initialdir=initial_dir, parent=self.tk_root, title=Title, filetypes=filetypes)
 
         except TclError:
-                self.console.print("This IDE does not support this function.", style="bold")
-                return
+            self.console.print("This IDE does not support this function.", style="bold")
+            return
 
         self.tk_root.attributes('-topmost', False)
         self.tk_root.withdraw() #Hide the tkinter window again
@@ -65,39 +70,50 @@ class Portfolio:
             return
 
         for inv in imported_portfolio:
-            symbol = inv["symbol"]
-            quantity = float(inv["quantity"]) #because quantity comes as a string
             type = inv["type"]
-            price = float(inv["price"])
-            p_price = float(inv["p_price"])
+
+            if type == "total_profit":
+                total_profits = ast.literal_eval(inv["profit"]) #list of points (total values in each given time). ast.literal_eval converts the list back from a string to a list again
+                time = ast.literal_eval(inv["price"])
+                total_value = ast.literal_eval(inv["value(usd)"])
+                quantity = len(asset) +1 
+                self.main_portfolio.append({"symbol" : "total_profit", "quantity" : len(total_profits) + 1,"price" : time, "value(usd)"  : total_value , "type" : "total_profit", "p_price" : 0, "profit" : total_profits})
+
+            else:
+
+                symbol = inv["symbol"]
+                quantity = float(inv["quantity"]) #because quantity comes as a string
+                price = float(inv["price"])
+                p_price = float(inv["p_price"])
 
 
-            if type == "stocks/funds":
-                if n == 0:
-                    alpha = self.stocks_api
-                    try:
-                        asset, price = alpha.get_asset_price(symbol)
+                if type == "stocks/funds":
+                    if n == 0:
+                        alpha = self.stocks_api
+                        try:
+                            asset, price = alpha.get_asset_price(symbol)
 
-                    except TypeError: # I noticed that when the alpha vantage API isn't working it returns None for the dictionary with the values
-                        self.console.print("The stocks/funds API isn't working.", style="bold red3")
-                        self.console.print("Try Again later", style="bold red3")
-                        self.console.print("The stocks will continue on your portfolio but with their old prices/values", style="bold red3")
-                        n += 1
+                        except TypeError: # I noticed that when the alpha vantage API isn't working it returns None for the dictionary with the values
+                            self.console.print("The stocks/funds API isn't working.", style="bold red3")
+                            self.console.print("Try Again later", style="bold red3")
+                            self.console.print("The stocks will continue on your portfolio but with their old prices/values", style="bold red3")
+                            n += 1
 
-                asset = symbol
-                self.check_main_portfolio(asset=asset,quantity=quantity, price=price, type=type, p_price=p_price)
+                    asset = symbol
+                    self.check_main_portfolio(asset=asset,quantity=quantity, price=price, type=type, p_price=p_price)
 
 
-            elif type == "crypto":
-                cmc = self.crypto_api
-                asset, price = cmc.get_crypto_price(symbol)
-                self.check_main_portfolio(asset=asset,quantity=quantity, price=price, type=type, p_price=p_price)
+                elif type == "crypto":
+                    cmc = self.crypto_api
+                    asset, price = cmc.get_crypto_price(symbol)
+                    self.check_main_portfolio(asset=asset,quantity=quantity, price=price, type=type, p_price=p_price)
 
-            elif type == "currency":
-                self.check_main_portfolio(asset=symbol,quantity=quantity, price=price, type=type, p_price=p_price)
+                elif type == "currency":
+                    self.check_main_portfolio(asset=symbol,quantity=quantity, price=price, type=type, p_price=p_price)
 
 
     def save_portfolio(self):
+        self.store_total_values() #Storing the total value of the current portfolio
         data = self.main_portfolio
 
         initial_dir = os.path.expanduser("~") #Gets the home directory of the user
@@ -140,10 +156,38 @@ class Portfolio:
                 self.main_portfolio[i]["price"] = price
                 self.main_portfolio[i]["quantity"] += quantity
                 self.main_portfolio[i]["value(usd)"] += value
-                self.main_portfolio[i]["profit"] = value - original_value 
+                self.main_portfolio[i]["profit"] += value - original_value
                 return
 
         self.main_portfolio.append({"symbol" : asset, "quantity" : quantity, "price" : price, "value(usd)" : value, "type" : type, "p_price" : p_price, "profit" : profit})
+
+    def store_total_values(self):
+
+    #Creating a "ghost asset" to store the total profits from each "visit" to the program so we can then plot the evolution of our portfolio
+    #The total_profit "points" will be stored in a list under "quantity"
+    #It also stores the time at which it has been stored under the key "price"
+    #And the total_value of the portfolio under "value(usd)"
+        time_since_epoch = time.time()
+        current_time = time.localtime(time_since_epoch)
+        year = current_time.tm_year
+        month = current_time.tm_mon
+        day = current_time.tm_mday
+        time_ts = f"{day}:{month}:{year}"
+
+        for inv in self.main_portfolio:
+            if inv["type"] == "total_profit":
+                inv["profit"].append(self.total_profit())
+                inv["price"].append(time_ts)
+                inv["value(usd)"].append(self.total_value)
+                return
+
+        total_profits = []
+        total_values = []
+        stored_times = []
+        total_profits.append(self.total_profit())
+        total_values.append(self.total_value())
+        stored_times.append(time_ts)
+        self.main_portfolio.append({"symbol" : "total_profit", "quantity" : len(total_profits) + 1,"price" : stored_times, "value(usd)"  : total_values, "type" : "total_profit", "p_price" : 0, "profit" : total_profits})
 
 
     def get_amount_to_add(self):
@@ -292,7 +336,10 @@ class Portfolio:
         total = 0
 
         for asset in self.main_portfolio:
-            total += float(asset["value(usd)"])
+            if asset["type"] == "total_profit":
+                pass
+            else:
+                total += float(asset["value(usd)"])
 
         return total
 
@@ -329,7 +376,10 @@ class Portfolio:
         total = 0
 
         for asset in self.main_portfolio:
-            total += float(asset["profit"])
+            if asset["type"] == "total_profit":
+                pass
+            else:
+                total += float(asset["profit"])
 
         return total
 
@@ -345,7 +395,7 @@ class Portfolio:
         table.add_column("Medium Purchase Price(USD)", justify="center")
         table.add_column("Profit(USD)", justify="center", style="green")
 
-
+        
         if  self.main_portfolio == []:
             print()
             self.console.print("Your Portfolio is still empty.", style="bold red3")
@@ -355,7 +405,10 @@ class Portfolio:
 
         else:
             for row in self.main_portfolio:
-                table.add_row(row["symbol"], str(row["quantity"]), f"""${row["price"]:,.2f}""" , f"""${row["value(usd)"]:,.2f}""", f"""${row["p_price"]:,.2f}""", f"""${row["profit"]:,.2f}""" )
+                if row["type"] == "total_profit":
+                    pass
+                else:
+                    table.add_row(row["symbol"], str(row["quantity"]), f"""${row["price"]:,.2f}""" , f"""${row["value(usd)"]:,.2f}""", f"""${row["p_price"]:,.2f}""", f"""${row["profit"]:,.2f}""" )
 
             self.console.print(table)
             print()
@@ -392,7 +445,7 @@ class Portfolio:
             table.add_row("Currency", f"""${total_value_currency:,.2f}""")
             table.add_row("Total Value $", f"""${total_value_dollars:,.2f}""")
             table.add_row("Total Value", f"""€{total_value_euros:,.2f}""")
-            table.add_row("Total Profit $", f"""€{total_profit_dollars:,.2f}""")
+            table.add_row("Total Profit $", f"""${total_profit_dollars:,.2f}""")
             table.add_row("Total Profit €", f"""€{total_profit_euros:,.2f}""")
 
 
@@ -400,6 +453,49 @@ class Portfolio:
             self.console.print(table)
             print()
 
+    
+    def plot_total_value(self): 
+        #The latest total value will only appear after you have saved the current portfolio(Warning!)
+        for inv in self.main_portfolio:
+            if inv["type"] == "total_profit":
+                fig, (ax1,ax2) = plt.subplots(2,1)
+
+                #Plot 1 (Profit Growth)
+                values = inv["profit"]
+                time = inv["price"]
+                x1 = time
+                y1 = values
+                ax1.set_title("Portfolio growth")
+                plt.style.use("ggplot")
+                ax1.plot(x1, y1, color="royalblue", marker="o", linestyle="-", linewidth=2, markersize=6)
+                ax1.set_xlabel("Date")
+                ax1.set_ylabel("Profit($USD)")
+                
+
+                #Plot 2 (Value Growth)
+                values = inv["value(usd)"]
+                time = inv["price"]
+                x2 = time
+                y2 = values
+                plt.style.use("ggplot")
+                ax2.plot(x2, y2, color="royalblue", marker="o", linestyle="-", linewidth=2, markersize=6)
+                ax2.set_xlabel("Date")
+                ax2.set_ylabel("Value($USD)")
+                
+                plt.show() # Show the data
+
+
+                
+                return
+
+        print()
+        self.console.print("Your Portfolio doesn't have any recorded total profit values.", style="bold red3")
+        print()
+
+
+        
+      
+        
 
 
 """
@@ -651,7 +747,10 @@ If you wish to use them please switch to an IDE with tkinter support (VScode for
         self.console.print("RM - Remove from Portfolio ", style="green")
         self.console.print("D - Display Portfolio ", style="green")
         self.console.print("GI - Get insights", style="green")
+        self.console.print("PLT - Plot portfolio growth ", style="green")
         self.console.print("Q - Quit ", style="green")
+        
+
         print()
 
 
@@ -784,6 +883,9 @@ If you wish to use them please switch to an IDE with tkinter support (VScode for
             else:
                 self.console.print("That is not a valid input.", style="bold red3")
 
+    def command_plot_growth(self):
+        self.portfolio.plot_total_value()
+
     def command_get_insights(self):
         self.portfolio.get_insights()
 
@@ -797,7 +899,7 @@ If you wish to use them please switch to an IDE with tkinter support (VScode for
 
 
     def get_input(self):
-        available_commands = ["H","A","S","I","D","Q","AS","AC","SS","SC","RM","GI","ACC","SAC"]
+        available_commands = ["H","A","S","I","D","Q","AS","AC","SS","SC","RM","GI","ACC","SAC","PLT"]
         try:
             command = input("Input command: ").upper()
             if command not in available_commands:
@@ -854,6 +956,8 @@ If you wish to use them please switch to an IDE with tkinter support (VScode for
             elif command == "SAC":
                 self.command_check_available_common_currency()
 
+            elif command == "PLT":
+                self.command_plot_growth()
 
 
 def main():
@@ -868,7 +972,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
 
