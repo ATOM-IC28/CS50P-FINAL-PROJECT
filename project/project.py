@@ -64,6 +64,7 @@ class Portfolio:
 
     def process_csv(self):
         imported_portfolio = self.load_csv()
+        
         n = 0 #it will count the number of times the stocks API fails. (Only this one fails, because it has limited requests per hour)
 
         if not imported_portfolio:
@@ -111,6 +112,7 @@ class Portfolio:
                 elif type == "currency":
                     self.check_main_portfolio(asset=symbol,quantity=quantity, price=price, type=type, p_price=p_price)
 
+        self.store_total_values()
 
     def save_portfolio(self):
         self.store_total_values() #Storing the total value of the current portfolio
@@ -178,7 +180,7 @@ class Portfolio:
             if inv["type"] == "total_profit":
                 inv["profit"].append(self.total_profit())
                 inv["price"].append(time_ts)
-                inv["value(usd)"].append(self.total_value)
+                inv["value(usd)"].append(self.total_value())
                 return
 
         total_profits = []
@@ -461,27 +463,27 @@ class Portfolio:
                 fig, (ax1,ax2) = plt.subplots(2,1)
 
                 #Plot 1 (Profit Growth)
-                values = inv["profit"]
-                time = inv["price"]
-                x1 = time
-                y1 = values
+                values_1 = inv["profit"]
+                timestamps = inv["price"]
+                x1 = timestamps
+                y1 = values_1
                 ax1.set_title("Portfolio growth")
                 plt.style.use("ggplot")
                 ax1.plot(x1, y1, color="royalblue", marker="o", linestyle="-", linewidth=2, markersize=6)
                 ax1.set_xlabel("Date")
                 ax1.set_ylabel("Profit($USD)")
                 
-
                 #Plot 2 (Value Growth)
-                values = inv["value(usd)"]
-                time = inv["price"]
-                x2 = time
-                y2 = values
+                values_2 = inv["value(usd)"]
+                print(values_2)
+                x2 = timestamps
+                y2 = values_2
                 plt.style.use("ggplot")
-                ax2.plot(x2, y2, color="royalblue", marker="o", linestyle="-", linewidth=2, markersize=6)
+                ax2.plot(x2, y2, marker="x", linestyle="-", linewidth=2, markersize=6)
                 ax2.set_xlabel("Date")
                 ax2.set_ylabel("Value($USD)")
                 
+               
                 plt.show() # Show the data
 
 
