@@ -469,13 +469,12 @@ class Portfolio:
                 y1 = values_1
                 ax1.set_title("Portfolio growth")
                 plt.style.use("ggplot")
-                ax1.plot(x1, y1, color="royalblue", marker="o", linestyle="-", linewidth=2, markersize=6)
+                ax1.plot(x1, y1, color="green", marker="o", linestyle="-", linewidth=2, markersize=6)
                 ax1.set_xlabel("Date")
                 ax1.set_ylabel("Profit($USD)")
                 
                 #Plot 2 (Value Growth)
                 values_2 = inv["value(usd)"]
-                print(values_2)
                 x2 = timestamps
                 y2 = values_2
                 plt.style.use("ggplot")
